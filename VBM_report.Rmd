@@ -1,0 +1,432 @@
+---
+title: "VBM Return Report - FL HD 101"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r, include = F}
+rm(list=ls())
+library(tidyverse)
+library(readxl)
+library(sp)
+library(st)
+library(sf)
+library(rgeos)
+library(tmap)
+library(knitr)
+library(kableExtra)
+library(googledrive)
+library(googlesheets4)
+library(writexl)
+```
+
+
+```{r, echo=F, message=F, warning=F}
+
+print(paste0("Last Ran: ", Sys.Date()))
+```
+
+```{r, include = F}
+# countylist <- c("BRO")
+# county <- "BRO"
+# i <- 1
+# for(county in countylist){
+#   County_data <- read_tsv(paste0("/users/isaac/SDSS Dropbox/Isaac Duerr/Phil_project/Data/20200609_VoterHistory/",county,"_H_20200609.txt"),
+#                           col_names = F)
+# 
+#   colnames(County_data) <- c("County", "VoterID", "Election_date", "Elect_type", "Vote_type")
+#   County_data <- County_data %>%
+#     filter(Elect_type != "OTH")
+# 
+#   County_data$Election_date <- as.Date(County_data$Election_date, format = "%m/%d/%Y")
+# 
+#   check <- spread(County_data, key = Election_date, value = Elect_type) %>%
+#     dplyr::select(VoterID, County, "2016-11-08", "2014-11-04", "2018-11-06", "2012-11-06", "2016-08-30", "2014-08-26", "2018-08-28", "2012-08-14", "2016-03-15")
+# 
+#   recheck <- check %>%
+#     group_by(VoterID)%>%
+#     summarize(`2018-11-06` = length(na.omit(`2018-11-06`)),
+#               `2016-11-08` = length(na.omit(`2016-11-08`)),
+#               `2014-11-04` = length(na.omit(`2014-11-04`)),
+#               `2012-11-06` = length(na.omit(`2012-11-06`)),
+#               `2018-08-28` = length(na.omit(`2018-08-28`)),
+#               `2016-08-30` = length(na.omit(`2016-08-30`)),
+#               `2016-03-15` = length(na.omit(`2016-03-15`)),
+#               `2014-08-26` = length(na.omit(`2014-08-26`)),
+#               `2012-08-14` = length(na.omit(`2012-08-14`)))
+# 
+#   County_data_reg <- read_tsv(paste0("/users/isaac/SDSS Dropbox/Isaac Duerr/Phil_project/Data/20200609_VoterDetail/", county, "_20200609.txt"),
+#                               col_names = F, na = c("", "NA", "*"), quote = "")
+#   colnames(County_data_reg) <- c("County_code","VoterID","Last","Suffix","First ","Middle", "public_records_exempt", "Address1","Address2","City","State","Zipcode","Mailing_Address1 ","Mailing_Address2","Mailing_Address3","Mailing_City","Mailing_State","Mailing_Zipcode","Mailing_Country","Gender","Race","Birth_Date","Reg_Date","Party","Precinct","Precinct_Group","Precinct_Split","Precinct_Suffix","Voter_Status","CD","House_D","Senate_D","CC_D","School_Board_D","Area_Code","Phone","Phone_Extension","Email")
+# 
+# 
+#  County_data_reg <- County_data_reg %>%
+#     filter(House_D == 101)
+# 
+#   dist93_dat <- left_join(County_data_reg, recheck, by = c("VoterID" = "VoterID"))
+# 
+#   # check <- spread(County_data, key = Election_date, value = Elect_type) %>%
+#   #   select(VoterID, County, "2016-11-08", "2014-11-04", "2014-08-26", "2014-08-26" )
+#   #
+#   #
+#   # recheck <- check %>%
+#   #   group_by(VoterID)%>%
+#   #   summarize(`2016-11-08` = length(na.omit(`2016-11-08`)), `2014-11-04` = length(na.omit(`2014-11-04`)))
+# 
+# 
+# 
+# 
+#   if(i == 1){
+#     write.table(dist93_dat,file="/users/isaac/SDSS Dropbox/Isaac Duerr/Phil_project/Projects/FL_HD_101/dist101_dat20200609.csv", sep = ",", row.names = FALSE)
+#     i <- i + 1
+#   }else{
+#     write.table(dist93_dat,file="/users/isaac/SDSS Dropbox/Isaac Duerr/Phil_project/Projects/FL_HD_101/dist101_dat20200609.csv", sep = ",", append = T, row.names = FALSE)
+#   }
+# }
+```
+
+```{r, echo=F, message=F, warning=F}
+
+library(rgdal)
+library(leaflet)
+library(rgeos)
+library(raster)
+library(RColorBrewer)
+
+# shp_file <- readOGR("/users/isaac/SDSS Dropbox/Isaac Duerr/Phil_project/Shapefiles/BRO_voterprecincts/VoterPrecincts2014.shp", GDAL1_integer64_policy = TRUE)
+# 
+# shp_file <- spTransform(shp_file, CRS("+proj=longlat +datum=WGS84 +no_defs"))
+# 
+# district_dat <-read_csv("/users/isaac/SDSS Dropbox/Isaac Duerr/Phil_project/Projects/FL_HD_101/dist101_dat20200609.csv")
+# dist_pcts <- unique(district_dat$Precinct)
+# shp_file <- subset(shp_file, shp_file$PRECINCT %in% dist_pcts)
+# 
+# shp_file_FL_city <- readOGR("/users/isaac/SDSS Dropbox/Isaac Duerr/Phil_project/Shapefiles/par_citylm_2017/par_citylm_2017.shp")
+# shp_file_FL_city <- spTransform(shp_file_FL_city, CRS("+proj=longlat +datum=WGS84 +no_defs"))
+# 
+# shp_file_FL_hd <- readOGR("/users/isaac/SDSS Dropbox/Isaac Duerr/Phil_project/Shapefiles/cb_2017_12_sldl_500k/cb_2017_12_sldl_500k.shp")
+# shp_file_FL_hd <- spTransform(shp_file_FL_hd, CRS("+proj=longlat +datum=WGS84 +no_defs"))
+# shp_file_FL_hd <- subset(shp_file_FL_hd, shp_file_FL_hd$SLDLST == "101")
+# 
+# shp_file_FL_city <- intersect(shp_file_FL_city, shp_file_FL_hd)
+# plot(shp_file_FL_city)
+# 
+# centers <- data.frame(gCentroid(shp_file, byid = T))
+# centers$region <- shp_file$PRECINCT
+# 
+# centers2 <- data.frame(gCentroid(shp_file_FL_city, byid = T))
+# centers2$region <- shp_file_FL_city$NAME.1
+# 
+# m <- leaflet(shp_file) %>%
+#   addTiles() %>%
+#   addPolygons(data = shp_file, color = "#444444", weight = 2, smoothFactor = 0.5,
+#     opacity = 1.0, fillOpacity = 0) %>%
+#   addPolygons(data = shp_file_FL_city, color = "#0000FF", weight = 2, smoothFactor = 0.5,
+#     opacity = 1.0, fillOpacity = 0) %>%
+#   addLabelOnlyMarkers(data = centers,
+#                     lng = ~x, lat = ~y, label = ~region,
+#                     labelOptions = labelOptions(noHide = TRUE, direction = 'top', textOnly = TRUE)) #%>%
+#   # addLabelOnlyMarkers(data = centers2,
+#   #                   lng = ~x, lat = ~y, label = ~region,
+#   #                   labelOptions = labelOptions(noHide = TRUE, direction = 'top', textOnly = TRUE))
+# 
+# 
+# m
+
+
+```
+
+```{r,include=F}
+VBM_all <- read_tsv("BRO_ABL_10865_20200803_015204.txt", guess_max = 10000)%>% filter(HouseDistrict == 101)
+all_dat <- read_csv("../dist101_dat20200609.csv") 
+VBM_all <- VBM_all %>% dplyr::select(FvrsVoterIdNumber, ElectionName, AbsenteeRequestStatus, AbsReturnDate, HouseDistrict)
+
+VBM_all_joined <- left_join(VBM_all, all_dat, by = c("FvrsVoterIdNumber" = "VoterID"))
+
+
+VBM_all_joined <- VBM_all_joined %>%
+    mutate(`Race/Ethnicity` = fct_recode(as.factor(Race), 
+                                   Other = "1", 
+                                   Other = "2", 
+                                   "African American" = "3", 
+                                   "Hispanic" = "4", 
+                                   "White" = "5", 
+                                   Other = "6", 
+                                   Other = "7", 
+                                   Other = "8", 
+                                   Other = "9"))
+#VBM_all$VoterID <- as.numeric(VBM_all$VoterID)
+
+VBM_all_joined$Age <- as.numeric(floor((Sys.Date() - as.Date(VBM_all_joined$Birth_Date,"%m/%d/%Y"))/365))
+VBM_all_joined$returned <- 0
+VBM_all_joined$returned[!is.na(VBM_all_joined$AbsReturnDate)] <- 1
+```
+
+
+```{r,include = F}
+
+shp_file <- st_read("/users/isaac/Google Drive/Gillum/Shapefiles/fl_2016/fl_2016.shp")
+
+
+shp_file_red <- shp_file %>%
+  filter(county %in% c("BRO"))
+
+# shp_file_FL_hd <- readOGR("/users/isaac/SDSS Dropbox/Isaac Duerr/Phil_project/Shapefiles/cb_2017_12_sldl_500k/cb_2017_12_sldl_500k.shp")
+# shp_file_FL_hd <- spTransform(shp_file_FL_hd, CRS("+proj=longlat +datum=WGS84 +no_defs"))
+# shp_file_FL_hd <- subset(shp_file_FL_hd, shp_file_FL_hd$SLDLST == "101")
+
+shp_file_FL_city <- st_read("/users/isaac/SDSS Dropbox/Isaac Duerr/Phil_project/Shapefiles/par_citylm_2017/par_citylm_2017.shp")
+
+cities <- VBM_all_joined %>%
+  group_by(`City`) %>%
+  summarize(`Total Registered Voters` = length(`2018-08-28`))
+cities <- cities[order(cities$`Total Registered Voters`, decreasing = T),]
+
+cities %>%    
+  kable("latex", booktabs = T,linesep = "", format.args = list(big.mark = ","))%>%
+  kable_styling()
+
+cities <- cities[order(cities$`Total Registered Voters`, decreasing = T),]
+
+city_list <- c(cities$City[cities$`Total Registered Voters`>1000])
+city_list <- toupper(city_list)
+```
+
+#Dem Returns Maps
+
+```{r, echo=F, message = F, warning = F}
+
+
+returns_by_pct <- VBM_all_joined %>%
+  filter(Party == "DEM") %>%
+  filter(HouseDistrict == 101) %>%
+  group_by(Precinct) %>%
+  filter(!is.na(Precinct)) %>%
+  summarize(`ReturnedVBM` = sum(returned == 1),
+           `OutVBM` = sum(returned == 0),
+           TotalVBM = length(returned)) %>%
+  mutate(Percent_returned = ReturnedVBM/TotalVBM*100)
+
+returns_by_pct$Precinct <- as.character(returns_by_pct$Precinct)
+precinct_maps_total <- inner_join(shp_file_red, returns_by_pct, by = c("pct" = "Precinct"))
+
+
+# tm1 <-tm_shape(precinct_maps_total) + tm_fill("Percent_returned", 
+#                 palette = "Blues", 
+#                 title = "Percent Returned \nDem Ballots",
+#                 textNA = "No voters")+
+#          tm_shape(shp_file_FL_city %>% filter(NAME %in% city_list)) + 
+#           tm_borders(lw = 1) + 
+#           tm_text("NAME", size = 0.4, col = "black", shadow = T)+
+#           tm_layout(legend.position = c(0,0.6),
+#           inner.margins = c(.03,.07,.03,.03),
+#           legend.frame = F) 
+# tm1
+
+shp_file <- readOGR("/users/isaac/SDSS Dropbox/Isaac Duerr/Phil_project/Shapefiles/BRO_voterprecincts/VoterPrecincts2014.shp", GDAL1_integer64_policy = TRUE, verbose = F)
+
+shp_file <- spTransform(shp_file, CRS("+proj=longlat +datum=WGS84 +no_defs"))
+
+dist_pcts <- unique(all_dat$Precinct)
+shp_file <- subset(shp_file, shp_file$PRECINCT %in% dist_pcts)
+
+
+tm_shp_file <- sp::merge(shp_file, returns_by_pct, by.x = "PRECINCT", by.y = "Precinct")
+
+bin_tmp = c(0,50,100,150,200,Inf)
+pal <- colorBin("Blues", domain = tm_shp_file$ReturnedVBM, bins = bin_tmp)
+
+m <- leaflet(tm_shp_file) %>%
+  addTiles() %>%
+  addPolygons(data = tm_shp_file, fillColor = ~pal(ReturnedVBM), weight = 2, smoothFactor = 0.5,
+    opacity = 1.0, fillOpacity = 0.5) %>%
+  addLegend(pal = pal, values = ~ReturnedVBM, opacity = 0.7, title = "Total \nReturned",
+  position = "bottomright")
+
+m
+
+pal <- colorBin("Blues", domain = tm_shp_file$Percent_returned, bins = 7)
+
+m <- leaflet(tm_shp_file) %>%
+  addTiles() %>%
+  addPolygons(data = tm_shp_file, fillColor = ~pal(Percent_returned), weight = 2, smoothFactor = 0.5,
+    opacity = 1.0, fillOpacity = 0.5) %>%
+  addLegend(pal = pal, values = ~Percent_returned, opacity = 0.7, title = "Percent \nReturned",
+  position = "bottomright")
+
+m
+
+pal <- colorBin("Blues", domain = tm_shp_file$OutVBM, bins = 7)
+
+m <- leaflet(tm_shp_file) %>%
+  addTiles() %>%
+  addPolygons(data = tm_shp_file, fillColor = ~pal(OutVBM), weight = 2, smoothFactor = 0.5,
+    opacity = 1.0, fillOpacity = 0.5) %>%
+  addLegend(pal = pal, values = ~OutVBM, opacity = 0.7, title = "Outstanding \nVBM",
+  position = "bottomright")
+
+m
+```
+
+
+
+```{r, echo=F, message = F, warning = F}
+#
+# AA_returns_by_pct <- VBM_all_joined %>%
+#   filter(`Race/Ethnicity` == "African American") %>%
+#   group_by(Precinct) %>%
+#   filter(!is.na(Precinct)) %>%
+#   summarize(`ReturnedVBM` = sum(returned == 1),
+#            `OutVBM` = sum(returned == 0),
+#            TotalVBM = length(returned)) %>%
+#   mutate(Percent_returned = ReturnedVBM/TotalVBM *100)
+#
+#
+# AA_returns_by_pct$Precinct <- as.character(AA_returns_by_pct$Precinct)
+# precinct_maps_total <- inner_join(shp_file, AA_returns_by_pct, by = c("pct" = "Precinct"))
+#
+#
+# tm1 <-tm_shape(precinct_maps_total) + tm_fill("Percent_returned",
+#                 palette = "Blues",
+#                 title = "Af Am Percent \nReturned Ballots",
+#                 textNA = "No voters")+
+#          tm_shape(shp_file_FL_city %>% filter(NAME %in% city_list)) +
+#           tm_borders(lw = 1) +
+#           tm_text("NAME", size = 0.4, col = "black", shadow = T)+
+#           tm_layout(legend.position = c(0,0.6),
+#           inner.margins = c(.03,.07,.03,.03),
+#           legend.frame = F)
+#
+# tm1
+#
+# tm1 <-tm_shape(precinct_maps_total) + tm_fill("OutVBM",
+#                 palette = "Blues",
+#                 title = "Af Am Out VBM \nBallots",
+#                 textNA = "No voters")+
+#          tm_shape(shp_file_FL_city %>% filter(NAME %in% city_list)) +
+#           tm_borders(lw = 1) +
+#           tm_text("NAME", size = 0.4, col = "black", shadow = T)+
+#           tm_layout(legend.position = c(0,0.6),
+#           inner.margins = c(.03,.07,.03,.03),
+#           legend.frame = F)
+#
+# tm1
+#
+# tm1 <-tm_shape(precinct_maps_total) + tm_fill("ReturnedVBM",
+#                 palette = "Blues",
+#                 title = "Af Am Returned VBM \nBallots",
+#                 textNA = "No voters")+
+#          tm_shape(shp_file_FL_city %>% filter(NAME %in% city_list)) +
+#           tm_borders(lw = 1) +
+#           tm_text("NAME", size = 0.4, col = "black", shadow = T)+
+#           tm_layout(legend.position = c(0,0.6),
+#           inner.margins = c(.03,.07,.03,.03),
+#           legend.frame = F)
+#
+# tm1
+
+```
+
+<!-- #Returns Tables -->
+
+<!-- ```{r, echo=F, message = F, warning = F} -->
+<!-- sheet_file = "upload_sheet.xlsx" -->
+<!-- returns_by_pct <- VBM_all_joined %>% -->
+<!--   filter(HouseDistrict == 101) %>% -->
+<!--   filter(Party == "DEM") %>% -->
+<!--   group_by(Precinct) %>% -->
+<!--   filter(!is.na(Precinct)) %>% -->
+<!--   summarize(`ReturnedVBM` = sum(returned == 1), -->
+<!--            `OutVBM` = sum(returned == 0), -->
+<!--            TotalVBM = length(returned), -->
+<!--            `AfAm Out` = sum(returned == 0 & `Race/Ethnicity` == "African American"), -->
+<!--            `Hisp Out` = sum(returned == 0 & `Race/Ethnicity` == "Hispanic"), -->
+<!--            `White Out` = sum(returned == 0 & `Race/Ethnicity` == "White"), -->
+<!--            `AfAm Returned` = sum(returned == 1 & `Race/Ethnicity` == "African American"), -->
+<!--            `Hisp Returned` = sum(returned == 1 & `Race/Ethnicity` == "Hispanic"), -->
+<!--            `White Returned` = sum(returned == 1 & `Race/Ethnicity` == "White"), -->
+<!--            `AfAm Total` = sum(`Race/Ethnicity` == "African American"), -->
+<!--            `Hisp Total` = sum(`Race/Ethnicity` == "Hispanic"), -->
+<!--            `White Total` = sum(`Race/Ethnicity` == "White")) %>% -->
+<!--   mutate(`Percent Returned` = round(ReturnedVBM/TotalVBM*100,1), -->
+<!--          `AfAm Percent Returned` = round(`AfAm Returned`/`AfAm Total`*100,1), -->
+<!--          `Hisp Percent Returned` = round(`Hisp Returned`/`Hisp Total`*100,1), -->
+<!--          `White Percent Returned` = round(`White Returned`/`White Total`*100,1) -->
+<!--          ) -->
+
+<!-- # write_xlsx(returns_by_pct, path = sheet_file) -->
+<!-- # -->
+<!-- # drive_upload( -->
+<!-- #   sheet_file, -->
+<!-- #   "VBM_Broward_sheet", -->
+<!-- #   type = "spreadsheet" -->
+<!-- # ) -->
+<!-- # -->
+<!-- # drive_find(type = "spreadsheet") -->
+
+<!-- #sheet_write() -->
+<!-- sheet_write(returns_by_pct, ss = "https://docs.google.com/spreadsheets/d/1eZ6wiTa0CHx0RBznSJJhBui2lJq3xWkXfmXiOWMQa2A/edit?usp=sharing", sheet = "Sheet1") -->
+
+<!-- ``` -->
+
+
+<!-- ```{r, echo=F, message = F, warning = F} -->
+
+<!-- returns_by_pct%>% -->
+<!--   dplyr::select(Precinct,`ReturnedVBM`:TotalVBM,  `AfAm Total`: `White Total`) %>% -->
+<!--   kable("latex", booktabs = T, format.args = list(big.mark = ","))%>% -->
+<!--   kable_styling() -->
+
+<!-- returns_by_pct%>% -->
+<!--   dplyr::select(Precinct, `AfAm Out`:`White Returned`) %>% -->
+<!--   kable("latex", booktabs = T, format.args = list(big.mark = ","))%>% -->
+<!--   kable_styling() -->
+
+<!-- returns_by_pct%>% -->
+<!--   dplyr::select(Precinct, `AfAm Percent Returned`:`White Percent Returned`) %>% -->
+<!--   kable("latex", booktabs = T, format.args = list(big.mark = ","))%>% -->
+<!--   kable_styling() -->
+
+<!-- ``` -->
+
+
+
+<!-- \newpage -->
+
+<!-- ##Top Outstanding Dem Precincts -->
+<!-- ```{r, echo=F, message = F, warning = F} -->
+
+<!-- dems <- VBM_all_joined %>% -->
+<!--   filter(Party %in% c("DEM")) %>% -->
+<!--   filter(HouseDistrict == 101) %>% -->
+<!--   group_by(Precinct) %>% -->
+<!--   filter(!is.na(Precinct)) %>% -->
+<!--   summarize(`ReturnedVBM` = sum(returned == 1), -->
+<!--            `OutVBM` = sum(returned == 0), -->
+<!--            TotalVBM = length(returned), -->
+<!--            `AfAm Out` = sum(returned == 0 & `Race/Ethnicity` == "African American"), -->
+<!--            `Hisp Out` = sum(returned == 0 & `Race/Ethnicity` == "Hispanic"), -->
+<!--            `White Out` = sum(returned == 0 & `Race/Ethnicity` == "White"), -->
+<!--            `AfAm Returned` = sum(returned == 1 & `Race/Ethnicity` == "African American"), -->
+<!--            `Hisp Returned` = sum(returned == 1 & `Race/Ethnicity` == "Hispanic"), -->
+<!--            `White Returned` = sum(returned == 1 & `Race/Ethnicity` == "White"), -->
+<!--            `AfAm Total` = sum(`Race/Ethnicity` == "African American"), -->
+<!--            `Hisp Total` = sum(`Race/Ethnicity` == "Hispanic"), -->
+<!--            `White Total` = sum(`Race/Ethnicity` == "White")) %>% -->
+<!--   mutate(`Percent Returned` = round(ReturnedVBM/TotalVBM*100,1), -->
+<!--          `AfAm Percent Returned` = round(`AfAm Returned`/`AfAm Total`*100,1), -->
+<!--          `Hisp Percent Returned` = round(`Hisp Returned`/`Hisp Total`*100,1), -->
+<!--          `White Percent Returned` = round(`White Returned`/`White Total`*100,1) -->
+<!--          ) -->
+
+<!-- top_dems <- dems[order(dems$OutVBM, decreasing = T),][1:10,] %>% -->
+<!--   dplyr::select(Precinct, `AfAm Out`:`White Out`) -->
+
+<!-- top_dems %>% -->
+<!--   kable("latex", booktabs = T, format.args = list(big.mark = ","))%>% -->
+<!--   kable_styling() -->
+<!-- ``` -->
+
